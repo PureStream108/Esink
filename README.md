@@ -1,2 +1,2 @@
 # Esink
-适用于Edge浏览器中的fuzz工具
+这是一款支持在Edge上进行fuzz的插件
