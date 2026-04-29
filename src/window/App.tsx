@@ -196,7 +196,7 @@ export function App() {
 
   async function loadInitialState() {
     const response = await sendRuntimeMessage<{ ok: true; state: UiState } | { ok: false; error: string }>({
-      kind: "resetSession"
+      kind: "getUiState"
     });
 
     if (response.ok) {
@@ -340,10 +340,10 @@ export function App() {
       <section className="hero-panel">
         <div className="display-header">
           <div className="brand-mark">ESink</div>
-          <div className="theme-switch" role="group" aria-label="主题模式">
+          <div className="theme-switch" role="group" aria-label="Theme mode">
             <span className={`theme-switch-indicator is-${themeMode}`} />
             <button
-              aria-label="明亮模式"
+              aria-label="Light mode"
               aria-pressed={themeMode === "light"}
               className={themeMode === "light" ? "theme-option is-active" : "theme-option"}
               onClick={() => setThemeMode("light")}
@@ -357,7 +357,7 @@ export function App() {
               </span>
             </button>
             <button
-              aria-label="跟随系统"
+              aria-label="System mode"
               aria-pressed={themeMode === "system"}
               className={themeMode === "system" ? "theme-option is-active" : "theme-option"}
               onClick={() => setThemeMode("system")}
@@ -371,7 +371,7 @@ export function App() {
               </span>
             </button>
             <button
-              aria-label="黑暗模式"
+              aria-label="Dark mode"
               aria-pressed={themeMode === "dark"}
               className={themeMode === "dark" ? "theme-option is-active" : "theme-option"}
               onClick={() => setThemeMode("dark")}
@@ -388,6 +388,7 @@ export function App() {
         <ResultStream
           capturedContext={uiState.capturedContext}
           feedback={feedback}
+          onResetDisplay={handleResetDisplay}
           progress={uiState.progress}
           results={uiState.results}
         />
@@ -399,14 +400,14 @@ export function App() {
           onClick={() => setActiveView("parameters")}
           type="button"
         >
-          参数
+          Parameters
         </button>
         <button
           className={activeView === "dictionaries" ? "toggle-button active" : "toggle-button"}
           onClick={() => setActiveView("dictionaries")}
           type="button"
         >
-          字典
+          Dictionaries
         </button>
       </section>
 

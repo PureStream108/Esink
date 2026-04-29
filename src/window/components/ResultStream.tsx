@@ -6,6 +6,7 @@ import type { CapturedInputContext, FuzzResultItem, TaskProgressState } from "..
 interface ResultStreamProps {
   capturedContext: CapturedInputContext | null;
   feedback: string;
+  onResetDisplay: () => void;
   progress: TaskProgressState;
   results: FuzzResultItem[];
 }
@@ -19,13 +20,32 @@ function formatTime(value: string): string {
 function buildTerminalLine(result: FuzzResultItem): string {
   const statusLabel = result.status ?? "ERR";
   const taskLabel = FUZZ_LABELS[result.taskType];
+  const isCredentialTask = result.taskType === "username" || result.taskType === "password";
   const target = result.requestUrl || result.payload || "system";
   const payloadSuffix =
-    result.payload && result.requestUrl && result.payload !== result.requestUrl
+    !isCredentialTask && result.payload && result.requestUrl && result.payload !== result.requestUrl
       ? ` payload=${result.payload}`
       : "";
+  const displayTarget = formatResultTarget(result, isCredentialTask, target);
 
-  return `[${formatTime(result.timestamp)}] [${taskLabel}] [${statusLabel}] ${result.summary} :: ${target}${payloadSuffix}`;
+  return `[${formatTime(result.timestamp)}] [${taskLabel}] [${statusLabel}] ${result.summary} :: ${displayTarget}${payloadSuffix}`;
+}
+
+function formatResultTarget(result: FuzzResultItem, isCredentialTask: boolean, fallback: string): string {
+  if (isCredentialTask) {
+    return result.payload || fallback;
+  }
+
+  if (result.taskType !== "directory" || !result.requestUrl) {
+    return fallback;
+  }
+
+  try {
+    const parsed = new URL(result.requestUrl);
+    return `${parsed.pathname}${parsed.search}${parsed.hash}` || "/";
+  } catch {
+    return fallback;
+  }
 }
 
 function buildTargetLine(capturedContext: CapturedInputContext | null): string {
@@ -36,7 +56,27 @@ function buildTargetLine(capturedContext: CapturedInputContext | null): string {
   return `TARGET ${capturedContext.fieldLabel || capturedContext.fieldName} @ ${new URL(capturedContext.pageUrl).host}`;
 }
 
-export function ResultStream({ capturedContext, feedback, progress, results }: ResultStreamProps) {
+function sortCompletedResults(results: FuzzResultItem[], active: boolean): FuzzResultItem[] {
+  if (active) {
+    return results;
+  }
+
+  return results
+    .map((result, index) => ({ index, result }))
+    .sort((left, right) => {
+      const leftRank = left.result.level === "success" ? 0 : 1;
+      const rightRank = right.result.level === "success" ? 0 : 1;
+
+      if (leftRank !== rightRank) {
+        return leftRank - rightRank;
+      }
+
+      return left.index - right.index;
+    })
+    .map(({ result }) => result);
+}
+
+export function ResultStream({ capturedContext, feedback, onResetDisplay, progress, results }: ResultStreamProps) {
   const streamRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -57,10 +97,14 @@ export function ResultStream({ capturedContext, feedback, progress, results }: R
 
   const systemLine = useMemo(() => `SYSTEM ${feedback}`, [feedback]);
   const targetLine = useMemo(() => buildTargetLine(capturedContext), [capturedContext]);
+  const displayedResults = useMemo(() => sortCompletedResults(results, progress.active), [progress.active, results]);
 
   return (
     <div className="result-stream">
       <div className="terminal-shell">
+        <button className="terminal-reset-button" onClick={onResetDisplay} type="button">
+          reset
+        </button>
         <div className="stream-list terminal-list" ref={streamRef}>
           <div className="terminal-line terminal-line-meta">
             <span className="terminal-prompt">$</span>
@@ -74,12 +118,12 @@ export function ResultStream({ capturedContext, feedback, progress, results }: R
             <span className="terminal-prompt">$</span>
             <span>{statusLine}</span>
           </div>
-          {results.length === 0 ? (
+          {displayedResults.length === 0 ? (
             <div className="terminal-line terminal-line-empty">
               <span className="terminal-prompt">&gt;</span>
             </div>
           ) : (
-            results.map((result) => (
+            displayedResults.map((result) => (
               <div className={`terminal-line terminal-line-${result.level}`} key={result.id}>
                 <span className="terminal-prompt">&gt;</span>
                 <span>{buildTerminalLine(result)}</span>

@@ -33,10 +33,10 @@ export function ParameterList({
         </div>
         <div className="list-intro-actions">
           <button className="ghost-button" onClick={onResetDisplay} type="button">
-            重置
+            Reset
           </button>
           <button className="ghost-button" onClick={onCancel} type="button">
-            停止
+            Stop
           </button>
         </div>
       </div>
@@ -52,11 +52,11 @@ export function ParameterList({
             </div>
             <div className="row-actions">
               <button disabled={disabled} onClick={() => onStart(taskType)} type="button">
-                启动
+                Start
               </button>
               {taskType === "directory" ? (
                 <button className="ghost-button" onClick={onOpenSettings} type="button">
-                  设置
+                  Settings
                 </button>
               ) : null}
             </div>

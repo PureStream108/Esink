@@ -352,10 +352,35 @@ button:disabled {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  position: relative;
   transition:
     background var(--transition-smooth),
     border-color var(--transition-smooth),
     box-shadow var(--transition-smooth);
+}
+
+.terminal-reset-button {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  bottom: 8px;
+  color: var(--terminal-meta-color);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.82rem;
+  line-height: 1;
+  opacity: 0.76;
+  padding: 0;
+  position: absolute;
+  right: 12px;
+  text-transform: lowercase;
+  z-index: 2;
+}
+
+.terminal-reset-button:hover:not(:disabled) {
+  background: transparent;
+  color: var(--terminal-success-color);
+  opacity: 1;
+  transform: none;
 }
 
 .terminal-list {

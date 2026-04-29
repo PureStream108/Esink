@@ -126,27 +126,57 @@ function buildCapturedContext(element: HTMLInputElement | HTMLTextAreaElement): 
   };
 }
 
+let lastCapturedKey = "";
+
+function syncCapturedTarget(target: EventTarget | null): void {
+  if (!isSupportedEditableElement(target)) {
+    return;
+  }
+
+  const context = buildCapturedContext(target);
+  const capturedKey = [
+    context.pageUrl,
+    context.fieldName,
+    context.fieldValue,
+    context.formAction,
+    context.formMethod,
+    context.otherFields.map((field) => `${field.name}=${field.value}`).join("&")
+  ].join("|");
+
+  if (capturedKey === lastCapturedKey) {
+    return;
+  }
+
+  lastCapturedKey = capturedKey;
+
+  chrome.runtime.sendMessage(
+    {
+      context,
+      kind: "captureTarget"
+    },
+    () => {
+      void chrome.runtime.lastError;
+    }
+  );
+}
+
 document.addEventListener(
   "contextmenu",
   (event) => {
     const path = event.composedPath();
     const target = path.find((entry) => isSupportedEditableElement(entry)) ?? event.target;
 
-    if (!isSupportedEditableElement(target)) {
-      return;
-    }
-
-    const context = buildCapturedContext(target);
-
-    chrome.runtime.sendMessage(
-      {
-        context,
-        kind: "captureTarget"
-      },
-      () => {
-        void chrome.runtime.lastError;
-      }
-    );
+    syncCapturedTarget(target);
   },
   true
 );
+
+for (const eventName of ["focusin", "pointerdown", "input"]) {
+  document.addEventListener(
+    eventName,
+    (event) => {
+      syncCapturedTarget(event.target);
+    },
+    true
+  );
+}

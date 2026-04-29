@@ -43,7 +43,7 @@ export function DictionaryList({ dictionaries, fileInputMapRef, onUpload }: Dict
                 onClick={() => fileInputMapRef.current[taskType]?.click()}
                 type="button"
               >
-                上传
+                Upload
               </button>
             </div>
           </article>

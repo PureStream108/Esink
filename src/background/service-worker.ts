@@ -19,6 +19,7 @@ import {
 import { runConcurrent } from "../shared/concurrency";
 import { buildFormRequest, resolveTaskFieldName } from "../shared/form-request";
 import type { RuntimeEvent, RuntimeRequest, RuntimeResponse } from "../shared/messages";
+import { compareResponseToBaseline, createResponseFingerprint } from "../shared/response-analysis";
 import {
   createInitialUiState,
   getBaseUiState,
@@ -271,6 +272,7 @@ async function resetSessionState(): Promise<UiState> {
   await abortActiveTask("会话已重置");
   taskResults = [];
   taskProgress = { ...EMPTY_PROGRESS_STATE };
+  await Promise.all([saveCapturedContext(null), saveLastPageContext(null)]);
   return getUiState();
 }
 
@@ -439,6 +441,17 @@ async function runInputFuzzTask(taskType: Exclude<FuzzType, "directory">): Promi
   const controller = new AbortController();
   activeTaskController = controller;
   resetTask(taskType, dictionary.entries.length, `正在对 ${targetFieldName} 发起请求`);
+  const shouldCompareWithBaseline = taskType === "username" || taskType === "password";
+  let baselineFingerprint = null;
+
+  try {
+    baselineFingerprint = shouldCompareWithBaseline
+      ? await createInputFuzzBaseline(context, targetFieldName, controller.signal)
+      : null;
+  } catch (error) {
+    activeTaskController = null;
+    throw error;
+  }
 
   activeTaskPromise = runConcurrent(
     dictionary.entries,
@@ -457,14 +470,17 @@ async function runInputFuzzTask(taskType: Exclude<FuzzType, "directory">): Promi
           ...request.init,
           signal: controller.signal
         });
+        const fingerprint = baselineFingerprint ? await createResponseFingerprint(response) : null;
+        const comparison =
+          fingerprint && baselineFingerprint ? compareResponseToBaseline(fingerprint, baselineFingerprint) : null;
 
         latestResult = createResult(
           taskType,
           request.url,
           payload,
           response.status,
-          response.ok ? "success" : "info",
-          response.statusText || "请求完成"
+          comparison?.likelyHit || (!comparison && response.ok) ? "success" : "info",
+          comparison?.detail ?? response.statusText ?? "请求完成"
         );
         appendResult(latestResult);
       } catch (error) {
@@ -498,6 +514,21 @@ async function runInputFuzzTask(taskType: Exclude<FuzzType, "directory">): Promi
   });
 
   await activeTaskPromise;
+}
+
+async function createInputFuzzBaseline(
+  context: CapturedInputContext,
+  targetFieldName: string,
+  signal: AbortSignal
+) {
+  const payload = `__e_sink_invalid_${crypto.randomUUID()}__`;
+  const request = buildFormRequest(context, payload, targetFieldName);
+  const response = await fetch(request.url, {
+    ...request.init,
+    signal
+  });
+
+  return createResponseFingerprint(response);
 }
 
 async function startTask(taskType: FuzzType): Promise<void> {
@@ -667,6 +698,7 @@ chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
 chrome.windows.onRemoved.addListener((windowId) => {
   if (windowId === extensionWindowId) {
     extensionWindowId = null;
+    void resetSessionState();
   }
 });
 

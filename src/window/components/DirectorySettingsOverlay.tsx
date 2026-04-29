@@ -25,7 +25,7 @@ export function DirectorySettingsOverlay({
       <div className="overlay-card">
         <div className="overlay-header">
           <button className="ghost-button" onClick={onBack} type="button">
-            返回
+            Back
           </button>
           <button onClick={() => void onLoadCurrentUrl()} type="button">
             loadURL
@@ -93,7 +93,7 @@ export function DirectorySettingsOverlay({
             </div>
             <div className="overlay-footer">
               <button onClick={() => void onSave()} type="button">
-                保存
+                Save
               </button>
             </div>
           </>
