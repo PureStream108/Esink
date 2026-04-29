@@ -20,7 +20,8 @@
   "include": [
     "manifest.config.ts",
     "vite.config.ts",
-    "vitest.config.ts",
-    "src/**/*"
+    "vitest*.config.ts",
+    "src/**/*",
+    "tests/**/*"
   ]
 }

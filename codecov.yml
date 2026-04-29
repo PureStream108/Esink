@@ -1,0 +1,31 @@
+codecov:
+  require_ci_to_pass: true
+  max_report_age: off
+
+coverage:
+  precision: 2
+  round: down
+  range: 60...100
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 2%
+    patch:
+      default:
+        target: auto
+        threshold: 5%
+
+comment:
+  behavior: default
+  layout: "reach,diff,flags,tree"
+  require_changes: false
+
+github_checks:
+  annotations: true
+
+ignore:
+  - "tests/**/*.test.ts"
+  - "tests/**/*.stress.test.ts"
+  - "dist/**"
+  - "dist-dev/**"

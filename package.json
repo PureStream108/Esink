@@ -6,7 +6,10 @@
   "scripts": {
     "build": "vite build",
     "build:dev": "vite build --mode development-seed",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:stress": "vitest run --config vitest.stress.config.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "react": "latest",
@@ -18,6 +21,7 @@
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "@vitejs/plugin-react": "latest",
+    "@vitest/coverage-v8": "^4.1.5",
     "typescript": "latest",
     "vite": "latest",
     "vitest": "latest"
