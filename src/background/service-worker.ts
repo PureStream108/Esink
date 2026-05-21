@@ -1,10 +1,12 @@
 import {
   CONTEXT_MENU_ID,
+  createDefaultPayloadResultSettings,
   DIRECTORY_CONCURRENCY,
   EMPTY_PROGRESS_STATE,
   EXTENSION_WINDOW_OPTIONS,
   EXTENSION_WINDOW_PATH,
   FUZZ_TYPES,
+  isPayloadSettingsType,
   INPUT_FUZZ_CONCURRENCY,
   RESULT_LIMIT
 } from "../shared/constants";
@@ -19,6 +21,7 @@ import {
 import { runConcurrent } from "../shared/concurrency";
 import { buildFormRequest, resolveTaskFieldName } from "../shared/form-request";
 import type { RuntimeEvent, RuntimeRequest, RuntimeResponse } from "../shared/messages";
+import { analyzePayloadReflection } from "../shared/payload-analysis";
 import { compareResponseToBaseline, createResponseFingerprint } from "../shared/response-analysis";
 import {
   createInitialUiState,
@@ -26,10 +29,12 @@ import {
   getCapturedContext,
   getDirectorySettings,
   getLastPageContext,
+  getPayloadSettingsRecord,
   getStoredDictionaries,
   saveCapturedContext,
   saveDictionarySet,
   saveDirectorySettings,
+  savePayloadSettings,
   saveLastPageContext
 } from "../shared/storage";
 import type {
@@ -39,6 +44,8 @@ import type {
   FuzzResultItem,
   FuzzType,
   LastPageContext,
+  PayloadReflectionState,
+  PayloadResultSettings,
   ResultLevel,
   TaskProgressState,
   UiState
@@ -79,18 +86,25 @@ function appendResult(result: FuzzResultItem): void {
   taskResults = [...taskResults, result].slice(-RESULT_LIMIT);
 }
 
+function buildPayloadResultSummary(payload: string, state: PayloadReflectionState): string {
+  const prefix = state === "unfiltered" ? "Success" : "Failed";
+  return `${prefix}: ${payload}`.trim();
+}
+
 function createResult(
   taskType: FuzzType,
   requestUrl: string,
   payload: string,
   status: number | null,
   level: ResultLevel,
-  summary: string
+  summary: string,
+  payloadReflectionState?: PayloadReflectionState
 ): FuzzResultItem {
   return {
     id: crypto.randomUUID(),
     level,
     payload,
+    payloadReflectionState,
     requestUrl,
     status,
     statusBucket: typeof status === "number" ? getStatusBucket(status) : undefined,
@@ -315,6 +329,14 @@ async function syncDirectorySettings(settings: DirectorySettings): Promise<void>
   });
 }
 
+async function syncPayloadSettings(settings: PayloadResultSettings): Promise<void> {
+  await savePayloadSettings(settings);
+  broadcastEvent({
+    kind: "payloadSettingsUpdated",
+    settings
+  });
+}
+
 async function abortActiveTask(reason: string): Promise<void> {
   if (activeTaskController) {
     pendingCancelMessage = reason;
@@ -470,6 +492,17 @@ async function runInputFuzzTask(taskType: Exclude<FuzzType, "directory">): Promi
           ...request.init,
           signal: controller.signal
         });
+        let payloadReflectionState: PayloadReflectionState | undefined;
+        let summary = response.statusText || "请求完成";
+        let level: ResultLevel = response.ok ? "success" : "info";
+
+        if (isPayloadSettingsType(taskType)) {
+          const analysis = analyzePayloadReflection(payload, await response.text());
+          payloadReflectionState = analysis.state;
+          summary = buildPayloadResultSummary(analysis.displayText, analysis.state);
+          level = analysis.state === "unfiltered" ? "success" : "info";
+        }
+
         const fingerprint = baselineFingerprint ? await createResponseFingerprint(response) : null;
         const comparison =
           fingerprint && baselineFingerprint ? compareResponseToBaseline(fingerprint, baselineFingerprint) : null;
@@ -479,8 +512,9 @@ async function runInputFuzzTask(taskType: Exclude<FuzzType, "directory">): Promi
           request.url,
           payload,
           response.status,
-          comparison?.likelyHit || (!comparison && response.ok) ? "success" : "info",
-          comparison?.detail ?? response.statusText ?? "请求完成"
+          comparison?.likelyHit || (!comparison && level === "success") ? "success" : "info",
+          comparison?.detail ?? summary,
+          payloadReflectionState
         );
         appendResult(latestResult);
       } catch (error) {
@@ -616,6 +650,14 @@ async function handleRequest(message: RuntimeRequest, sender: chrome.runtime.Mes
       return { ok: true };
     }
 
+    case "savePayloadSettings": {
+      await syncPayloadSettings({
+        ...message.settings,
+        updatedAt: new Date().toISOString()
+      });
+      return { ok: true };
+    }
+
     case "saveDictionary": {
       await syncDictionary(message.dictionary);
       return { ok: true };
@@ -704,6 +746,16 @@ chrome.windows.onRemoved.addListener((windowId) => {
 
 async function initializeExtension(): Promise<void> {
   await Promise.all([ensureDevelopmentDictionaries(), rebuildContextMenu()]);
+  const payloadSettings = await getPayloadSettingsRecord();
+
+  for (const taskType of FUZZ_TYPES) {
+    if (!isPayloadSettingsType(taskType) || payloadSettings[taskType]) {
+      continue;
+    }
+
+    await savePayloadSettings(createDefaultPayloadResultSettings(taskType));
+  }
+
   taskResults = [];
   taskProgress = { ...createInitialUiState().progress };
 }

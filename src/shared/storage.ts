@@ -1,5 +1,6 @@
 import {
   createEmptyDictionaryRecord,
+  createEmptyPayloadSettingsRecord,
   EMPTY_PROGRESS_STATE
 } from "./constants";
 import { getLocalStorage, setLocalStorage } from "./browser";
@@ -9,6 +10,8 @@ import type {
   DictionaryRecord,
   DirectorySettings,
   LastPageContext,
+  PayloadResultSettings,
+  PayloadResultSettingsRecord,
   UiState
 } from "./types";
 
@@ -16,6 +19,7 @@ const STORAGE_KEYS = {
   capturedContext: "capturedContext",
   dictionaries: "dictionaries",
   directorySettings: "directorySettings",
+  payloadSettings: "payloadSettings",
   lastPageContext: "lastPageContext"
 } as const;
 
@@ -23,6 +27,7 @@ interface StorageShape {
   capturedContext?: CapturedInputContext | null;
   dictionaries?: Partial<DictionaryRecord>;
   directorySettings?: DirectorySettings | null;
+  payloadSettings?: Partial<PayloadResultSettingsRecord>;
   lastPageContext?: LastPageContext | null;
 }
 
@@ -59,6 +64,30 @@ export async function saveDirectorySettings(settings: DirectorySettings): Promis
   });
 }
 
+export async function getPayloadSettingsRecord(): Promise<PayloadResultSettingsRecord> {
+  const storage = await getLocalStorage<StorageShape>(STORAGE_KEYS.payloadSettings);
+  return {
+    ...createEmptyPayloadSettingsRecord(),
+    ...(storage.payloadSettings ?? {})
+  };
+}
+
+export async function savePayloadSettings(
+  settings: PayloadResultSettings
+): Promise<PayloadResultSettingsRecord> {
+  const current = await getPayloadSettingsRecord();
+  const next = {
+    ...current,
+    [settings.type]: settings
+  };
+
+  await setLocalStorage({
+    [STORAGE_KEYS.payloadSettings]: next
+  });
+
+  return next;
+}
+
 export async function getCapturedContext(): Promise<CapturedInputContext | null> {
   const storage = await getLocalStorage<StorageShape>(STORAGE_KEYS.capturedContext);
   return storage.capturedContext ?? null;
@@ -82,9 +111,10 @@ export async function saveLastPageContext(context: LastPageContext | null): Prom
 }
 
 export async function getBaseUiState(): Promise<Omit<UiState, "results" | "progress">> {
-  const [dictionaries, directorySettings, capturedContext, lastPageContext] = await Promise.all([
+  const [dictionaries, directorySettings, payloadSettings, capturedContext, lastPageContext] = await Promise.all([
     getStoredDictionaries(),
     getDirectorySettings(),
+    getPayloadSettingsRecord(),
     getCapturedContext(),
     getLastPageContext()
   ]);
@@ -92,6 +122,7 @@ export async function getBaseUiState(): Promise<Omit<UiState, "results" | "progr
   return {
     dictionaries,
     directorySettings,
+    payloadSettings,
     capturedContext,
     lastPageContext
   };
@@ -101,6 +132,7 @@ export function createInitialUiState(): UiState {
   return {
     dictionaries: createEmptyDictionaryRecord(),
     directorySettings: null,
+    payloadSettings: createEmptyPayloadSettingsRecord(),
     capturedContext: null,
     lastPageContext: null,
     results: [],

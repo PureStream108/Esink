@@ -1,4 +1,13 @@
-import type { DictionaryRecord, FuzzType, StatusBucket, TaskProgressState } from "./types";
+import type {
+  DictionaryRecord,
+  FuzzType,
+  PayloadFuzzType,
+  PayloadReflectionState,
+  PayloadResultSettings,
+  PayloadResultSettingsRecord,
+  StatusBucket,
+  TaskProgressState
+} from "./types";
 
 export const FUZZ_TYPES: readonly FuzzType[] = [
   "directory",
@@ -9,6 +18,8 @@ export const FUZZ_TYPES: readonly FuzzType[] = [
   "username",
   "password"
 ];
+
+export const PAYLOAD_SETTINGS_TYPES: readonly PayloadFuzzType[] = ["ssti", "ssrf", "xss", "rce"];
 
 export const FUZZ_LABELS: Record<FuzzType, string> = {
   directory: "Directory",
@@ -21,6 +32,8 @@ export const FUZZ_LABELS: Record<FuzzType, string> = {
 };
 
 export const DEFAULT_VISIBLE_STATUS_BUCKETS: StatusBucket[] = ["200"];
+
+export const DEFAULT_VISIBLE_REFLECTION_STATES: PayloadReflectionState[] = ["filtered"];
 
 export const CONTEXT_MENU_ID = "e-sink-open";
 
@@ -56,4 +69,23 @@ export function createEmptyDictionaryRecord(): DictionaryRecord {
     accumulator[type] = null;
     return accumulator;
   }, {} as DictionaryRecord);
+}
+
+export function isPayloadSettingsType(taskType: FuzzType): taskType is PayloadFuzzType {
+  return PAYLOAD_SETTINGS_TYPES.includes(taskType as PayloadFuzzType);
+}
+
+export function createDefaultPayloadResultSettings(type: PayloadFuzzType): PayloadResultSettings {
+  return {
+    type,
+    visibleReflectionStates: [...DEFAULT_VISIBLE_REFLECTION_STATES],
+    updatedAt: new Date().toISOString()
+  };
+}
+
+export function createEmptyPayloadSettingsRecord(): PayloadResultSettingsRecord {
+  return PAYLOAD_SETTINGS_TYPES.reduce<PayloadResultSettingsRecord>((accumulator, type) => {
+    accumulator[type] = null;
+    return accumulator;
+  }, {} as PayloadResultSettingsRecord);
 }

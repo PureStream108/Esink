@@ -1,41 +1,44 @@
-import directoryFixture from "../../fixtures/directory.txt?raw";
-import passwordFixture from "../../fixtures/password.txt?raw";
-import rceFixture from "../../fixtures/rce.txt?raw";
-import ssrfFixture from "../../fixtures/ssrf.txt?raw";
-import sstiFixture from "../../fixtures/ssti.txt?raw";
-import usernameFixture from "../../fixtures/username.txt?raw";
-import xssFixture from "../../fixtures/xss.txt?raw";
 import { createDictionarySet } from "../shared/dictionaries";
 import type { DictionaryEntrySet, FuzzType } from "../shared/types";
 
 const FIXTURE_MAP: Record<FuzzType, { filename: string; content: string }> = {
   directory: {
     filename: "directory-dev.txt",
-    content: directoryFixture
+    content: ["admin", "api", "backup", "robots.txt", "uploads", "debug", "login.php"].join("\n")
   },
   ssti: {
     filename: "ssti-dev.txt",
-    content: sstiFixture
+    content: ["{{7*7}}", "${7*7}", "<%= 7 * 7 %>", "#{7*7}"].join("\n")
   },
   ssrf: {
     filename: "ssrf-dev.txt",
-    content: ssrfFixture
+    content: [
+      "http://127.0.0.1",
+      "http://localhost",
+      "http://169.254.169.254/latest/meta-data/",
+      "http://example.com/internal"
+    ].join("\n")
   },
   xss: {
     filename: "xss-dev.txt",
-    content: xssFixture
+    content: [
+      "<script>alert(1)</script>",
+      "\"><svg/onload=alert(1)>",
+      "'><img src=x onerror=alert(1)>",
+      "javascript:alert(1)"
+    ].join("\n")
   },
   rce: {
     filename: "rce-dev.txt",
-    content: rceFixture
+    content: [";id", "&& whoami", "| cat /etc/passwd", "`id`"].join("\n")
   },
   username: {
     filename: "username-dev.txt",
-    content: usernameFixture
+    content: ["admin", "root", "test", "guest"].join("\n")
   },
   password: {
     filename: "password-dev.txt",
-    content: passwordFixture
+    content: ["admin123", "password", "123456", "letmein"].join("\n")
   }
 };
 

@@ -2,14 +2,17 @@ import { getLocalStorage, setLocalStorage } from "../../src/shared/browser";
 import {
   createInitialUiState,
   getBaseUiState,
+  getPayloadSettingsRecord,
   getStoredDictionaries,
+  savePayloadSettings,
   saveDictionarySet
 } from "../../src/shared/storage";
 import type {
   CapturedInputContext,
   DictionaryEntrySet,
   DirectorySettings,
-  LastPageContext
+  LastPageContext,
+  PayloadResultSettings
 } from "../../src/shared/types";
 
 vi.mock("../../src/shared/browser", () => ({
@@ -33,6 +36,12 @@ const sampleDirectorySettings: DirectorySettings = {
   pathPrefix: "/admin",
   visibleStatusBuckets: ["200", "4xx"],
   lastLoadedUrl: "https://example.com/admin",
+  updatedAt: "2026-04-23T00:00:00.000Z"
+};
+
+const samplePayloadSettings: PayloadResultSettings = {
+  type: "xss",
+  visibleReflectionStates: ["unfiltered"],
   updatedAt: "2026-04-23T00:00:00.000Z"
 };
 
@@ -72,6 +81,17 @@ describe("storage helpers", () => {
     expect(result.password).toBeNull();
   });
 
+  it("fills missing payload settings slots with null", async () => {
+    mockedGetLocalStorage.mockResolvedValue({});
+
+    const result = await getPayloadSettingsRecord();
+
+    expect(result.xss).toBeNull();
+    expect(result.ssti).toBeNull();
+    expect(result.ssrf).toBeNull();
+    expect(result.rce).toBeNull();
+  });
+
   it("persists a dictionary set into the dictionary record", async () => {
     mockedGetLocalStorage.mockResolvedValue({});
 
@@ -80,6 +100,17 @@ describe("storage helpers", () => {
     expect(result.directory).toEqual(sampleDictionary);
     expect(mockedSetLocalStorage).toHaveBeenCalledWith({
       dictionaries: result
+    });
+  });
+
+  it("persists payload settings into the payload settings record", async () => {
+    mockedGetLocalStorage.mockResolvedValue({});
+
+    const result = await savePayloadSettings(samplePayloadSettings);
+
+    expect(result.xss).toEqual(samplePayloadSettings);
+    expect(mockedSetLocalStorage).toHaveBeenCalledWith({
+      payloadSettings: result
     });
   });
 
@@ -94,6 +125,11 @@ describe("storage helpers", () => {
         directorySettings: sampleDirectorySettings
       })
       .mockResolvedValueOnce({
+        payloadSettings: {
+          xss: samplePayloadSettings
+        }
+      })
+      .mockResolvedValueOnce({
         capturedContext: sampleCapturedContext
       })
       .mockResolvedValueOnce({
@@ -104,6 +140,7 @@ describe("storage helpers", () => {
 
     expect(result.dictionaries.directory).toEqual(sampleDictionary);
     expect(result.directorySettings).toEqual(sampleDirectorySettings);
+    expect(result.payloadSettings.xss).toEqual(samplePayloadSettings);
     expect(result.capturedContext).toEqual(sampleCapturedContext);
     expect(result.lastPageContext).toEqual(sampleLastPageContext);
   });
@@ -115,5 +152,6 @@ describe("storage helpers", () => {
     expect(result.progress.active).toBe(false);
     expect(result.progress.message).toBe("等待启动");
     expect(result.dictionaries.directory).toBeNull();
+    expect(result.payloadSettings.xss).toBeNull();
   });
 });

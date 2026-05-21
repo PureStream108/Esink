@@ -7,9 +7,13 @@ export type FuzzType =
   | "username"
   | "password";
 
+export type PayloadFuzzType = Exclude<FuzzType, "directory" | "username" | "password">;
+
 export type StatusBucket = "200" | "3xx" | "4xx" | "5xx";
 
 export type ResultLevel = "info" | "success" | "error";
+
+export type PayloadReflectionState = "filtered" | "unfiltered";
 
 export interface DictionaryEntrySet {
   type: FuzzType;
@@ -20,6 +24,14 @@ export interface DictionaryEntrySet {
 }
 
 export type DictionaryRecord = Record<FuzzType, DictionaryEntrySet | null>;
+
+export interface PayloadResultSettings {
+  type: PayloadFuzzType;
+  visibleReflectionStates: PayloadReflectionState[];
+  updatedAt: string;
+}
+
+export type PayloadResultSettingsRecord = Record<PayloadFuzzType, PayloadResultSettings | null>;
 
 export interface DirectorySettings {
   lockedOrigin: string;
@@ -60,6 +72,7 @@ export interface FuzzResultItem {
   timestamp: string;
   requestUrl: string;
   payload: string;
+  payloadReflectionState?: PayloadReflectionState;
   status: number | null;
   statusBucket?: StatusBucket;
   level: ResultLevel;
@@ -79,6 +92,7 @@ export interface TaskProgressState {
 export interface UiState {
   dictionaries: DictionaryRecord;
   directorySettings: DirectorySettings | null;
+  payloadSettings: PayloadResultSettingsRecord;
   capturedContext: CapturedInputContext | null;
   lastPageContext: LastPageContext | null;
   results: FuzzResultItem[];

@@ -4,6 +4,7 @@ import type {
   DirectorySettings,
   FuzzResultItem,
   FuzzType,
+  PayloadResultSettings,
   UiState
 } from "./types";
 
@@ -14,6 +15,7 @@ export type RuntimeRequest =
   | { kind: "clearDisplay" }
   | { kind: "loadActiveUrl" }
   | { kind: "saveDirectorySettings"; settings: DirectorySettings }
+  | { kind: "savePayloadSettings"; settings: PayloadResultSettings }
   | { kind: "saveDictionary"; dictionary: DictionaryEntrySet }
   | { kind: "startTask"; taskType: FuzzType }
   | { kind: "cancelTask" }
@@ -27,5 +29,6 @@ export type RuntimeEvent =
   | { kind: "capturedContextUpdated"; context: CapturedInputContext | null }
   | { kind: "dictionaryUpdated"; dictionary: DictionaryEntrySet }
   | { kind: "directorySettingsUpdated"; settings: DirectorySettings | null }
+  | { kind: "payloadSettingsUpdated"; settings: PayloadResultSettings }
   | { kind: "lastPageContextUpdated"; tabId: number | null; url: string | null }
   | { kind: "taskStateUpdated"; state: UiState["progress"]; latestResult?: FuzzResultItem };

@@ -1,4 +1,4 @@
-import { FUZZ_LABELS, FUZZ_TYPES } from "../../shared/constants";
+import { FUZZ_LABELS, FUZZ_TYPES, isPayloadSettingsType } from "../../shared/constants";
 import type {
   CapturedInputContext,
   DictionaryRecord,
@@ -9,7 +9,7 @@ import type {
 interface ParameterListProps {
   dictionaries: DictionaryRecord;
   onCancel: () => void;
-  onOpenSettings: () => void;
+  onOpenSettings: (taskType: FuzzType) => void;
   onResetDisplay: () => void;
   onStart: (taskType: FuzzType) => void;
   progress: TaskProgressState;
@@ -54,8 +54,8 @@ export function ParameterList({
               <button disabled={disabled} onClick={() => onStart(taskType)} type="button">
                 Start
               </button>
-              {taskType === "directory" ? (
-                <button className="ghost-button" onClick={onOpenSettings} type="button">
+              {taskType === "directory" || isPayloadSettingsType(taskType) ? (
+                <button className="ghost-button" onClick={() => onOpenSettings(taskType)} type="button">
                   Settings
                 </button>
               ) : null}

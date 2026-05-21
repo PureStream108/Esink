@@ -1,6 +1,12 @@
 import { startTransition, useEffect, useRef, useState } from "react";
 
-import { FUZZ_LABELS, FUZZ_TYPES, MIN_LAYOUT_WIDTH } from "../shared/constants";
+import {
+  createDefaultPayloadResultSettings,
+  FUZZ_LABELS,
+  FUZZ_TYPES,
+  isPayloadSettingsType,
+  MIN_LAYOUT_WIDTH
+} from "../shared/constants";
 import { sendRuntimeMessage } from "../shared/browser";
 import { createDictionarySet, ensureTxtFilename } from "../shared/dictionaries";
 import type { RuntimeEvent, RuntimeResponse } from "../shared/messages";
@@ -8,12 +14,14 @@ import type {
   CapturedInputContext,
   DirectorySettings,
   FuzzType,
+  PayloadResultSettings,
   UiState
 } from "../shared/types";
 import { getEditableUrlPreview, normalizePathPrefix } from "../shared/url";
 import { DictionaryList } from "./components/DictionaryList";
 import { DirectorySettingsOverlay } from "./components/DirectorySettingsOverlay";
 import { ParameterList } from "./components/ParameterList";
+import { PayloadSettingsOverlay } from "./components/PayloadSettingsOverlay";
 import { ResultStream } from "./components/ResultStream";
 
 type ActiveView = "parameters" | "dictionaries";
@@ -39,6 +47,12 @@ function createFallbackUiState(): UiState {
       xss: null
     },
     directorySettings: null,
+    payloadSettings: {
+      rce: null,
+      ssrf: null,
+      ssti: null,
+      xss: null
+    },
     lastPageContext: null,
     progress: {
       active: false,
@@ -64,8 +78,9 @@ function isStartableInputTask(taskType: FuzzType, context: CapturedInputContext 
 export function App() {
   const [uiState, setUiState] = useState<UiState>(createFallbackUiState);
   const [activeView, setActiveView] = useState<ActiveView>("parameters");
+  const [activeSettingsTask, setActiveSettingsTask] = useState<FuzzType | null>(null);
   const [directoryDraft, setDirectoryDraft] = useState<DirectorySettings | null>(null);
-  const [isOverlayOpen, setIsOverlayOpen] = useState(false);
+  const [payloadSettingsDraft, setPayloadSettingsDraft] = useState<PayloadResultSettings | null>(null);
   const [feedback, setFeedback] = useState("等待操作");
   const [isNarrow, setIsNarrow] = useState(window.innerWidth < MIN_LAYOUT_WIDTH);
   const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(getSystemTheme);
@@ -105,6 +120,14 @@ export function App() {
               return {
                 ...current,
                 directorySettings: message.settings
+              };
+            case "payloadSettingsUpdated":
+              return {
+                ...current,
+                payloadSettings: {
+                  ...current.payloadSettings,
+                  [message.settings.type]: message.settings
+                }
               };
             case "lastPageContextUpdated":
               return {
@@ -268,17 +291,27 @@ export function App() {
     setFeedback(`已载入 ${response.settings.lockedOrigin}`);
   }
 
-  function handleOpenSettings() {
-    setDirectoryDraft(
-      uiState.directorySettings ?? {
-        lockedOrigin: "",
-        pathPrefix: "/",
-        visibleStatusBuckets: ["200"],
-        lastLoadedUrl: "",
-        updatedAt: new Date().toISOString()
-      }
-    );
-    setIsOverlayOpen(true);
+  function handleOpenSettings(taskType: FuzzType) {
+    if (taskType === "directory") {
+      setDirectoryDraft(
+        uiState.directorySettings ?? {
+          lockedOrigin: "",
+          pathPrefix: "/",
+          visibleStatusBuckets: ["200"],
+          lastLoadedUrl: "",
+          updatedAt: new Date().toISOString()
+        }
+      );
+      setActiveSettingsTask(taskType);
+      return;
+    }
+
+    if (!isPayloadSettingsType(taskType)) {
+      return;
+    }
+
+    setPayloadSettingsDraft(uiState.payloadSettings[taskType] ?? createDefaultPayloadResultSettings(taskType));
+    setActiveSettingsTask(taskType);
   }
 
   async function handleSaveDirectorySettings() {
@@ -306,8 +339,39 @@ export function App() {
       ...current,
       directorySettings: normalizedSettings
     }));
-    setIsOverlayOpen(false);
+    setActiveSettingsTask(null);
     setFeedback(`Directory 设置已保存到 ${getEditableUrlPreview(normalizedSettings)}`);
+  }
+
+  async function handleSavePayloadSettings() {
+    if (!payloadSettingsDraft) {
+      return;
+    }
+
+    const normalizedSettings: PayloadResultSettings = {
+      ...payloadSettingsDraft,
+      updatedAt: new Date().toISOString()
+    };
+
+    const response = await sendRuntimeMessage<RuntimeResponse>({
+      kind: "savePayloadSettings",
+      settings: normalizedSettings
+    });
+
+    if (!response.ok) {
+      setFeedback(response.error);
+      return;
+    }
+
+    setUiState((current) => ({
+      ...current,
+      payloadSettings: {
+        ...current.payloadSettings,
+        [normalizedSettings.type]: normalizedSettings
+      }
+    }));
+    setActiveSettingsTask(null);
+    setFeedback(`${FUZZ_LABELS[normalizedSettings.type]} 设置已保存`);
   }
 
   async function handleUploadDictionary(taskType: FuzzType, file: File | null) {
@@ -389,6 +453,7 @@ export function App() {
           capturedContext={uiState.capturedContext}
           feedback={feedback}
           onResetDisplay={handleResetDisplay}
+          payloadSettings={uiState.payloadSettings}
           progress={uiState.progress}
           results={uiState.results}
         />
@@ -412,11 +477,11 @@ export function App() {
       </section>
 
       <section className="body-panel">
-        {activeView === "parameters" ? (
-          <ParameterList
-            dictionaries={uiState.dictionaries}
-            onCancel={handleCancelTask}
-            onOpenSettings={handleOpenSettings}
+      {activeView === "parameters" ? (
+        <ParameterList
+          dictionaries={uiState.dictionaries}
+          onCancel={handleCancelTask}
+          onOpenSettings={handleOpenSettings}
             onResetDisplay={handleResetDisplay}
             onStart={handleStartTask}
             progress={uiState.progress}
@@ -437,13 +502,22 @@ export function App() {
         </div>
       ) : null}
 
-      {isOverlayOpen ? (
+      {activeSettingsTask === "directory" ? (
         <DirectorySettingsOverlay
           draft={directoryDraft}
-          onBack={() => setIsOverlayOpen(false)}
+          onBack={() => setActiveSettingsTask(null)}
           onChange={setDirectoryDraft}
           onLoadCurrentUrl={handleLoadActiveUrl}
           onSave={handleSaveDirectorySettings}
+        />
+      ) : null}
+
+      {activeSettingsTask && activeSettingsTask !== "directory" && isPayloadSettingsType(activeSettingsTask) ? (
+        <PayloadSettingsOverlay
+          draft={payloadSettingsDraft}
+          onBack={() => setActiveSettingsTask(null)}
+          onChange={setPayloadSettingsDraft}
+          onSave={handleSavePayloadSettings}
         />
       ) : null}
     </main>

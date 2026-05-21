@@ -1,12 +1,22 @@
 import { useEffect, useMemo, useRef } from "react";
 
-import { FUZZ_LABELS } from "../../shared/constants";
-import type { CapturedInputContext, FuzzResultItem, TaskProgressState } from "../../shared/types";
+import {
+  DEFAULT_VISIBLE_REFLECTION_STATES,
+  FUZZ_LABELS,
+  isPayloadSettingsType
+} from "../../shared/constants";
+import type {
+  CapturedInputContext,
+  FuzzResultItem,
+  PayloadResultSettingsRecord,
+  TaskProgressState
+} from "../../shared/types";
 
 interface ResultStreamProps {
   capturedContext: CapturedInputContext | null;
   feedback: string;
   onResetDisplay: () => void;
+  payloadSettings: PayloadResultSettingsRecord;
   progress: TaskProgressState;
   results: FuzzResultItem[];
 }
@@ -18,6 +28,10 @@ function formatTime(value: string): string {
 }
 
 function buildTerminalLine(result: FuzzResultItem): string {
+  if (isPayloadSettingsType(result.taskType)) {
+    return result.summary;
+  }
+
   const statusLabel = result.status ?? "ERR";
   const taskLabel = FUZZ_LABELS[result.taskType];
   const isCredentialTask = result.taskType === "username" || result.taskType === "password";
@@ -76,7 +90,25 @@ function sortCompletedResults(results: FuzzResultItem[], active: boolean): FuzzR
     .map(({ result }) => result);
 }
 
-export function ResultStream({ capturedContext, feedback, onResetDisplay, progress, results }: ResultStreamProps) {
+function isVisibleResult(result: FuzzResultItem, payloadSettings: PayloadResultSettingsRecord): boolean {
+  if (!isPayloadSettingsType(result.taskType) || !result.payloadReflectionState) {
+    return true;
+  }
+
+  const configuredStates = payloadSettings[result.taskType]?.visibleReflectionStates;
+  const visibleStates = configuredStates?.length ? configuredStates : DEFAULT_VISIBLE_REFLECTION_STATES;
+
+  return visibleStates.includes(result.payloadReflectionState);
+}
+
+export function ResultStream({
+  capturedContext,
+  feedback,
+  onResetDisplay,
+  payloadSettings,
+  progress,
+  results
+}: ResultStreamProps) {
   const streamRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -97,7 +129,10 @@ export function ResultStream({ capturedContext, feedback, onResetDisplay, progre
 
   const systemLine = useMemo(() => `SYSTEM ${feedback}`, [feedback]);
   const targetLine = useMemo(() => buildTargetLine(capturedContext), [capturedContext]);
-  const displayedResults = useMemo(() => sortCompletedResults(results, progress.active), [progress.active, results]);
+  const displayedResults = useMemo(
+    () => sortCompletedResults(results.filter((result) => isVisibleResult(result, payloadSettings)), progress.active),
+    [payloadSettings, progress.active, results]
+  );
 
   return (
     <div className="result-stream">

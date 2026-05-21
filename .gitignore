@@ -42,3 +42,4 @@ build.md
 dist-dev.pem
 dist-dev.crx
 fixtures
+example/
